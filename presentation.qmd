@@ -1,0 +1,800 @@
+---
+title: "Military Expenditure Trends"
+format: 
+  revealjs:
+    slide-number: true
+---
+
+## How has global military spending changed in response to major geopolitical events?
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+#| label: packages
+#| message: false
+
+# These are the packages used in the report
+
+library(tidyverse)
+# Install necessary packages if not already installed
+if (!require(plotly)) install.packages("plotly")
+if (!require(readxl)) install.packages("readxl")
+if (!require(dplyr)) install.packages("dplyr")
+if (!require(tidyr)) install.packages("tidyr")
+if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(ggrepel)) install.packages("ggrepel")
+if (!requireNamespace("countrycode", quietly = TRUE)) {install.packages("countrycode")}
+if (!requireNamespace("plotly", quietly = TRUE)) {install.packages("plotly")}
+
+# Load the required libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(tidyverse)
+library(scales)
+library(plotly)
+library(countrycode)
+```
+
+- Historical trends in military expenditure.
+- Impact of major geopolitical events (e.g., Cold War, post-9/11, Ukraine conflict).
+- Importance of understanding global military spending.
+
+---
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Load the Excel file
+file_path <- "SIPRI-Milex-data-1948-2023.xlsx"
+data_constant <- read_excel(file_path, sheet = "Constant (2022) US$", skip = 5)
+data_spend <- read_excel(file_path, sheet = "Share of Govt. spending", skip = 6)
+
+# Load military expenditure data: Constant (2022) US$ and Share of Govt. Spending
+kable(head(data_constant))
+kable(head(data_spend) )
+```
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+
+# Remove the first row (header names) and unnecessary columns
+data_constant <- data_constant[-1, ]  # Remove the first row
+data_constant <- data_constant[, c(1, 4:ncol(data_constant))]  # Keep relevant columns (Country and yearly expenditures)
+
+# Rename the columns for better clarity (1948 to 2023)
+colnames(data_constant) <- c("Country", as.character(1948:2023))
+
+# Convert the data from wide to long format for easier analysis
+data_long_constant <- data_constant %>%
+  pivot_longer(cols = -Country, 
+               names_to = "Year", 
+               values_to = "Expenditure") %>%
+  mutate(Year = as.integer(Year),  # Convert Year to integer
+         Expenditure = as.numeric(Expenditure))  # Convert Expenditure to numeric
+
+# Display the cleaned long-format data
+data_long_constant <- na.omit(data_long_constant)
+
+# Data Cleaning for Military Expenditure as a Percentage of Govt Spending
+data_spend <- data_spend[-1, ]  # Remove unnecessary row
+data_spend <- data_spend[, c(1, 4:ncol(data_spend))]  # Keep relevant columns (Country and yearly expenditures)
+
+# Rename the columns for better clarity (1988 to 2023)
+colnames(data_spend) <- c("Country", as.character(1988:2023))
+
+# Convert the data from wide to long format for easier analysis
+data_long_spend <- data_spend %>%
+  pivot_longer(cols = -Country, 
+               names_to = "Year", 
+               values_to = "Expenditure") %>%
+  mutate(Year = as.integer(Year),  # Convert Year to integer
+         Expenditure = as.numeric(Expenditure))  # Convert Expenditure to numeric
+
+# Display the cleaned long-format data
+data_long_spend <- na.omit(data_long_spend)
+
+```
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Define the mapping for standardization
+country_mapping <- c("United States of America" = "USA", 
+                     "Türkiye" = "Turkey",
+                     "United Kingdom"= "UK")
+
+# Standardize country names in the `data_long_constant` dataset
+data_long_constant <- data_long_constant %>%
+  mutate(Country = recode(Country, !!!country_mapping))
+
+# Standardize country names in the `data_long_spend` dataset
+data_long_spend <- data_long_spend %>%
+  mutate(Country = recode(Country, !!!country_mapping))
+# Remove rows where the Country column contains "Country" in `data_long_spend`
+data_long_spend <- data_long_spend %>%
+  filter(Country != "Country")
+```
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Summary statistics for constant military expenditure
+summary_constant <- data_long_constant %>%
+  group_by(Country) %>%
+  summarize(mean_expenditure = mean(Expenditure, na.rm = TRUE),
+            min_expenditure = min(Expenditure, na.rm = TRUE),
+            max_expenditure = max(Expenditure, na.rm = TRUE))
+
+# Summary statistics for military expenditure as a percentage of government spending
+summary_spend <- data_long_spend %>%
+  group_by(Country) %>%
+  summarize(mean_expenditure = mean(Expenditure, na.rm = TRUE),
+            min_expenditure = min(Expenditure, na.rm = TRUE),
+            max_expenditure = max(Expenditure, na.rm = TRUE))
+
+# Display the summary statistics
+kable(head(summary_constant))
+kable(head(summary_spend))
+```
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Aggregate global spending by summing expenditures for each year
+global_spending <- data_long_constant %>%
+  group_by(Year) %>%
+  summarise(GlobalExpenditure = sum(Expenditure, na.rm = TRUE))
+```
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+
+
+# Filter the data for a specific year (e.g., 2023)
+country_spending <- data_long_constant %>%
+  filter(Year == 2023) %>%
+  group_by(Country) %>%
+  summarize(Expenditure = sum(Expenditure, na.rm = TRUE), .groups = "drop")
+country_spending <- country_spending %>%
+  mutate(ISO3 = countrycode(Country, origin = "country.name", destination = "iso3c"))
+```
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+
+country_spending_years_percentage <- data_long_spend %>%
+  mutate(ISO3 = countrycode(Country, origin = "country.name", destination = "iso3c"))
+
+country_spending_years <- data_long_constant %>%
+  mutate(ISO3 = countrycode(Country, origin = "country.name", destination = "iso3c"))
+```
+
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+
+ggplot(global_spending, aes(x = Year, y = GlobalExpenditure)) +
+  geom_line(aes(color = "Military Spending"), size = 1.5, alpha = 0.7) +  # Red line with transparency
+  geom_smooth(aes(color = "Trend Line"), method = "loess", size = 1, linetype = "dashed", se = FALSE) +  # Trend line
+  labs(
+    title = "Global Military Spending (1949-2023) in Constant 2022 US$", 
+    subtitle = "Adjusted for Constant 2022 US$m", 
+    x = "Year", 
+    y = "Military Spending (US$m)",
+    caption = "Source: Global Military Expenditure Data"
+  ) +
+  scale_y_continuous(labels = comma) +  # Format y-axis with commas
+  scale_color_manual(
+    values = c("Military Spending" = "#D32F2F", "Trend Line" = "#1976D2"),  # Custom line colors
+    name = "Legend", 
+    breaks = c("Military Spending", "Trend Line"),
+    labels = c("Military Spending", "Trend Line")
+  ) +
+  theme_minimal(base_size = 14) +  # Adjust font size for better readability
+  theme(
+    plot.title = element_text(size = 14, face = "bold", color = "#333333"),
+    plot.subtitle = element_text(size = 12, color = "#555555"),
+    plot.caption = element_text(size = 10, color = "#777777"),
+    axis.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12, color = "#333333"),
+    panel.grid.major = element_line(color = "#E0E0E0", size = 0.5),
+    panel.grid.minor = element_line(color = "#F0F0F0", size = 0.25),
+    legend.position = "top",  # Position legend at the top
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 12)
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+## Global Military Spending Trends (1949-2023)
+
+- **Increase**: Military spending rises from 1949 to 2023 (adjusted for 2022 USD).
+- **Post-Cold War Dip**: Decline after Cold War, due to lower tensions.
+- **Mid-2000s Surge**: Notable rise from terrorism & instability.
+
+
+
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+# Load the Excel file
+file_path <- "SIPRI-Milex-data-1948-2023.xlsx"
+data_constant <- read_excel(file_path, sheet = "Constant (2022) US$", skip = 5)
+data_spend <- read_excel(file_path, sheet = "Share of Govt. spending", skip = 6)
+
+```
+## Closer Look to North America
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# List of North American countries (ISO3 codes for reference)
+north_america_countries <- c(
+  "CAN", "MEX", "USA"
+)
+
+# Filter data for North American countries and calculate the average expenditure per year
+north_america_spending <- country_spending_years_percentage %>%
+  filter(ISO3 %in% north_america_countries) %>%
+  group_by(Year) %>%
+  summarize(TotalExpenditure = mean(Expenditure, na.rm = TRUE), .groups = "drop")
+
+# Improved Plot for North America
+ggplot(north_america_spending, aes(x = Year, y = TotalExpenditure)) +
+  geom_line(color = "darkred", size = 1.2) +  # Dark red line for North America
+  labs(
+    title = "Average Military Expenditure of North American Countries (1988–2023)",
+    subtitle = "The average percentage of GDP spent on military across North American countries",
+    x = "Year",
+    y = "Average Military Expenditure (Percentage)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    legend.position = "none",  # No legend needed
+    panel.grid.major = element_line(color = "gray80", size = 0.5),  # Subtle grid lines for clarity
+    panel.grid.minor = element_blank(),  # No minor grid lines
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))  # Format y-axis as percentage
+```
+## Military Spending in North America (1988-2023)
+
+- **Post-Cold War Decline**: Reduced spending in the 1990s due to lower global tensions.
+- **Post-9/11 Surge**: Significant rise in military spending after 2000.
+- **Recent Stabilization**: Spending levels have stabilized in recent years, likely due to economic and geopolitical factors.
+
+
+
+## Closer Look to Europe
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# List of European countries (ISO3 codes for reference)
+europe_countries <- c(
+  "ALB", "AND", "ARM", "AUT", "AZE", "BEL", "BIH", "BGR", "HRV", "CYP", "CZE", 
+  "DNK", "EST", "FIN", "FRA", "GEO", "DEU", "GRC", "HUN", "ISL", "IRL", "ITA", 
+  "KOS", "LVA", "LTU", "LUX", "MKD", "MDA", "MLT", "MNE", "NLD", "NOR", "POL", 
+  "PRT", "ROU", "RUS", "SMR", "SVK", "SVN", "ESP", "SWE", "CHE", "TUR", "UKR", "GBR"
+)
+
+# Filter data for European countries and calculate the average expenditure per year (constant)
+europe_spending_constant <- country_spending_years %>%
+  filter(ISO3 %in% europe_countries) %>%
+  group_by(Year) %>%
+  summarize(TotalExpenditure = mean(Expenditure, na.rm = TRUE), .groups = "drop")
+
+# Improved Plot for Europe (Constant Expenditure)
+ggplot(europe_spending_constant, aes(x = Year, y = TotalExpenditure)) +
+  geom_line(color = "darkblue", size = 1.2) +  # Dark blue line for Europe
+  labs(
+    title = "Total Military Expenditure of European Countries (Constant 2022 USD)",
+    subtitle = "The total constant military expenditure (inflation-adjusted) across European countries",
+    x = "Year",
+    y = "Average Military Expenditure (Billion USD)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 9, hjust = 0.5),
+    legend.position = "none",  # No legend needed
+    panel.grid.major = element_line(color = "gray80", size = 0.5),  # Subtle grid lines for clarity
+    panel.grid.minor = element_blank(),  # No minor grid lines
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_y_continuous(labels = scales::comma)  # Format y-axis with commas for clarity
+```
+
+## European Military Expenditure (1949-2023)
+
+- **Cold War Surge**: Significant increase in military spending during the 1950s, driven by Cold War tensions with the Soviet Union.
+- **Post-Cold War Decline**: After the Soviet Union's dissolution in 1991, European military spending dropped due to reduced perceived threats.
+- **1991 Spike**: The peak in 1991 is due to Russia's military spending being included in European totals after the Soviet Union dissolved, before it was excluded.
+
+## Reason for 1991 Spike and Russian inclusion to dataset
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# List of European countries and their ISO3 codes
+country_names <- c(
+  "ALB" = "Albania", "AND" = "Andorra", "ARM" = "Armenia", "AUT" = "Austria", 
+  "AZE" = "Azerbaijan", "BEL" = "Belgium", "BIH" = "Bosnia and Herzegovina", "BGR" = "Bulgaria", 
+  "HRV" = "Croatia", "CYP" = "Cyprus", "CZE" = "Czech Republic", "DNK" = "Denmark", 
+  "EST" = "Estonia", "FIN" = "Finland", "FRA" = "France", "GEO" = "Georgia", "DEU" = "Germany", 
+  "GRC" = "Greece", "HUN" = "Hungary", "ISL" = "Iceland", "IRL" = "Ireland", "ITA" = "Italy", 
+  "KOS" = "Kosovo", "LVA" = "Latvia", "LTU" = "Lithuania", "LUX" = "Luxembourg", "MKD" = "North Macedonia", 
+  "MDA" = "Moldova", "MLT" = "Malta", "MNE" = "Montenegro", "NLD" = "Netherlands", "NOR" = "Norway", 
+  "POL" = "Poland", "PRT" = "Portugal", "ROU" = "Romania", "RUS" = "Russia", "SMR" = "San Marino", 
+  "SVK" = "Slovakia", "SVN" = "Slovenia", "ESP" = "Spain", "SWE" = "Sweden", "CHE" = "Switzerland", 
+  "TUR" = "Turkey", "UKR" = "Ukraine", "GBR" = "United Kingdom"
+)
+
+# List of countries we want to plot: Germany, France, United Kingdom, Russia
+selected_countries <- c("DEU", "FRA", "GBR", "RUS")
+
+# Filter data to only include the selected countries
+europe_spending_selected <- country_spending_years %>%
+  filter(ISO3 %in% selected_countries)
+
+# Update the country names for the selected countries
+selected_country_names <- country_names[selected_countries]
+
+# Improved Plot for Europe (Selected Countries)
+ggplot(europe_spending_selected, aes(x = Year, y = Expenditure, fill = ISO3)) +
+  geom_area(alpha = 0.8, size = 0.3, color = "black") +  # Stacked area chart
+  scale_fill_manual(
+    values = c("darkblue", "darkgreen", "red", "orange"),  # Color palette for the selected countries
+    labels = selected_country_names  # Use country names for the selected countries
+  ) +
+  labs(
+    title = "Military Expenditure in Europe: Germany, France, UK, and Russia",
+    subtitle = "A comparison of military expenditure for the selected European countries",
+    x = "Year",
+    y = "Total Military Expenditure (Billion USD)",
+    fill = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+    plot.subtitle = element_text(size = 9, hjust = 0.5),
+    legend.position = "bottom",  # Legend at the bottom
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    panel.grid.major = element_line(color = "gray80", size = 0.5),  # Subtle grid lines for clarity
+    panel.grid.minor = element_blank(),  # No minor grid lines
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_y_continuous(labels = scales::comma)  # Format y-axis with commas for clarity
+```
+
+
+## Geopolitical events in Europe from 1988
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+
+# Calculate the country with the highest military expenditure as a percentage for each year
+top_country_percentage <- country_spending_years_percentage %>%
+  filter(ISO3 %in% europe_countries) %>%
+  group_by(Year, ISO3) %>%
+  summarize(TotalExpenditure = sum(Expenditure, na.rm = TRUE), .groups = "drop") %>%
+  group_by(Year) %>%
+  top_n(1, TotalExpenditure) %>%
+  ungroup()
+
+# Add country names for the top countries
+top_country_percentage <- top_country_percentage %>%
+  mutate(Country = country_names[ISO3])
+
+# Display the top countries for each year
+top_country_percentage %>%
+  select(Year, Country, TotalExpenditure)
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+top_country_percentage <- top_country_percentage %>%
+  arrange(Year)
+
+# Plot the graph with adjusted colors and smaller text
+ggplot(top_country_percentage, aes(x = Year, y = TotalExpenditure, group = 1, color = Country)) +
+  geom_line(size = 1.2) +  # Line graph with thicker lines
+  geom_point(size = 3) +   # Add points for visibility
+  scale_color_manual(values = RColorBrewer::brewer.pal(12, "Set3")[1:length(unique(top_country_percentage$Country))]) +  # Use Set3 for up to 12 colors
+  labs(
+    title = "Military Expenditure as Percentage of Government Spending",
+    subtitle = "Combined line graph showing top countries over the years",
+    x = "Year",
+    y = "Military Expenditure (%)",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 10) +  # Reduced base size for smaller text
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 14),  # Reduced title size
+    plot.subtitle = element_text(size = 10, hjust = 0.5),  # Reduced subtitle size
+    axis.title = element_text(face = "bold", size = 10),  # Reduced axis title size
+    axis.text = element_text(size = 8),  # Reduced axis text size
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 8),
+    legend.text = element_text(size = 8)  # Reduced legend text size
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +  # Format y-axis as percentage
+  scale_x_continuous(
+    breaks = seq(min(top_country_percentage$Year), max(top_country_percentage$Year), by = 2)  # Adjust year breaks
+  )
+```
+
+## Geopolitical Events and Military Spending in Europe
+
+- **Dissolution of the Soviet Union (1991)**: Triggered conflicts, increasing defense budgets like Armenia, Azerbaijan, Georgia, and Ukraine.
+
+- **Nagorno-Karabakh War**: Ongoing conflict between Armenia and Azerbaijan, with escalations in the early 1990s and 2020, influencing military spending in both countries.
+- **Bosnian War (1992-1995) & Kosovo War (1998-1999)**: These conflicts impacted military spending in the Balkans, particularly in Croatia and Serbia.
+
+## Geopolitical Events and Military Spending Impact
+
+- **2008 Russo-Georgian War**: Georgia increased its military spending to modernize its armed forces and enhance its defense capabilities following the war.
+- **Russian Invasion of Ukraine (2022)**: The invasion prompted Ukraine and neighboring countries to boost military spending in response to Russian aggression.
+- **NATO Expansion (1990s-2000s)**: Countries like Poland, Romania, and the Baltic states saw increased military spending to meet NATO standards as the alliance expanded eastward.
+
+
+## Total Military Expenditure of Asian Countries
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+asia_countries <- c(
+  "AFG", "ARM", "AZE", "BHR", "BGD", "BRN", "BTN", "KHM", "CHN", "CYP", 
+  "IND", "IDN", "IRN", "IRQ", "ISR", "JPN", "JOR", "KAZ", "KOR", "KWT", 
+  "KGZ", "LAO", "LBN", "MYS", "MDV", "MNG", "MMR", "NPL", "OMN", "PAK", 
+  "PHL", "QAT", "SAU", "SGP", "LKA", "SYR", "TJK", "THA", "TKM", "ARE", 
+  "UZB", "VNM", "YEM"
+)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Filter data for Asian countries and calculate the total expenditure per year (absolute spending)
+asia_spending_total <- country_spending_years %>%
+  filter(ISO3 %in% asia_countries) %>%
+  group_by(Year) %>%
+  summarize(TotalExpenditure = sum(Expenditure, na.rm = TRUE), .groups = "drop")
+
+# Improved Plot for Asia (Total Expenditure)
+ggplot(asia_spending_total, aes(x = Year, y = TotalExpenditure)) +
+  geom_line(color = "darkorange", size = 1.2) +  # Dark orange line for total spending
+  labs(
+    title = "Total Military Expenditure of Asian Countries",
+    subtitle = "Total military expenditure across Asian countries over time",
+    x = "Year",
+    y = "Total Military Expenditure (Billion USD)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    legend.position = "none",  # No legend needed
+    panel.grid.major = element_line(color = "gray80", size = 0.5),  # Subtle grid lines for clarity
+    panel.grid.minor = element_blank(),  # No minor grid lines
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_y_continuous(labels = scales::comma_format())  # Format y-axis with commas for thousands
+```
+## Key Observations
+
+- **Steady Increase**: Asia’s military spending has risen steadily since 1950, surging post-1990s.
+- **Geopolitical Shifts**: The rise of China as a global power, the end of the Cold War, and regional conflicts, such as those in the South China Sea, have significantly influenced military expenditure.
+- **Economic Growth**: Economic growth in countries like China and India has provided the financial resources to support increased defense budgets.
+- **Evolving Threat Perceptions**: Rising Concerns over terrorism, cyber threats, and instability drive spending.
+
+## Average Military Expenditure of Asian Countries as a Percentage of Government Spending
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Filter data for Asian countries and calculate the average expenditure per year (percentage of government spending)
+asia_spending_percentage <- country_spending_years_percentage %>%
+  filter(ISO3 %in% asia_countries) %>%
+  group_by(Year) %>%
+  summarize(AverageExpenditure = mean(Expenditure, na.rm = TRUE), .groups = "drop")
+
+# Improved Plot for Asia (Expenditure as Percentage)
+ggplot(asia_spending_percentage, aes(x = Year, y = AverageExpenditure)) +
+  geom_line(color = "darkorange", size = 1.2) +  # Dark orange line for Asia
+  labs(
+    title = "Average Military Expenditure of Asian Countries as a Percentage of Government Spending",
+    subtitle = "The average military expenditure as a percentage of government spending across Asian countries",
+    x = "Year",
+    y = "Average Military Expenditure (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 10, hjust = 0.5),
+    plot.subtitle = element_text(size = 8, hjust = 0.5),
+    legend.position = "none",  # No legend needed
+    panel.grid.major = element_line(color = "gray80", size = 0.5),  # Subtle grid lines for clarity
+    panel.grid.minor = element_blank(),  # No minor grid lines
+    axis.title = element_text(face = "bold", size = 10),
+    axis.text = element_text(size = 10)
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1))  # Format y-axis as percentage
+```
+## Key Observations
+
+- **Downward Trend**: Military expenditure as a percentage of government spending generally decreased from the early 1990s to around 2010 despite increasing total spending likely due to rapid economic growth.
+- **Early 1990s Increase**: A sharp increase in military spending in the early 1990s likely reflects shifting dynamics in the Asia-Pacific region.
+- **Recent Uptick**: There has been a slight rise in military spending as a percentage of government expenditure, possibly driven by evolving security concerns.
+
+
+## Current Global Outlook for 2023 
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Create a choropleth map
+world_map <- plot_ly(
+  data = country_spending,
+  type = "choropleth",
+  locations = ~ISO3,        # ISO3 country codes
+  z = ~Expenditure,         # Expenditure values
+  text = ~Country,          # Hover text
+  colorscale = "Viridis",   # Color scale
+  reversescale = TRUE
+) %>%
+  layout(
+    title = "Country-Wise Total Military Expenditure (2023)",
+    geo = list(
+      showframe = FALSE,
+      showcoastlines = TRUE,
+      projection = list(type = "natural earth")
+    )
+  )
+
+# Display the map
+world_map
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Filter the data for a specific year (e.g., 2023)
+country_spending_percentage <- data_long_spend %>%
+  filter(Year == 2023) %>%
+  group_by(Country) %>%
+  summarize(Expenditure = sum(Expenditure, na.rm = TRUE), .groups = "drop")
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+country_spending_percentage <- country_spending_percentage %>%
+  mutate(ISO3 = countrycode(Country, origin = "country.name", destination = "iso3c"))
+```
+## Geopolitical Events and Military Spending Impact
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Create a choropleth map
+world_map <- plot_ly(
+  data = country_spending_percentage,
+  type = "choropleth",
+  locations = ~ISO3,        # ISO3 country codes
+  z = ~Expenditure,         # Expenditure values
+  text = ~Country,          # Hover text
+  colorscale = "Viridis",   # Color scale
+  reversescale = TRUE
+) %>%
+  layout(
+    title = "Country-Wise Military Expenditure Percentage (2023)",
+    geo = list(
+      showframe = FALSE,
+      showcoastlines = TRUE,
+      projection = list(type = "natural earth")
+    )
+  )
+
+# Display the map
+world_map
+```
+
+
+
+
+#	The Impact of Geopolitical Events 
+
+
+## Ukrainian Conflict
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# List of conflict-relevant countries
+conflict_countries <- c("UKR", "RUS", "", "DEU", "FRA","BEL", "POL", "ROU", "BGR", "LVA", "LTU", "EST")
+
+# Filter data for conflict years (2014 onwards) and relevant countries
+conflict_spending_constant <- country_spending_years %>%
+  filter(ISO3 %in% conflict_countries, Year >= 2014)
+
+conflict_spending_percentage <- country_spending_years_percentage %>%
+  filter(ISO3 %in% conflict_countries, Year >= 2014)
+
+# Merge constant spending and GDP percentage datasets
+conflict_summary <- conflict_spending_constant %>%
+  inner_join(conflict_spending_percentage, by = c("ISO3", "Year")) %>%
+  rename(
+    TotalSpending = Expenditure.x,
+    GDPPercentage = Expenditure.y
+  )
+
+# Visualization for Total Spending with Improved Colors
+ggplot(conflict_summary, aes(x = Year, y = TotalSpending, color = ISO3, group = ISO3)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(
+    values = c(
+      "UKR" = "#1f78b4", "RUS" = "#e31a1c", "DEU" = "#33a02c",
+      "FRA" = "#ff7f00", "BEL" = "#6a3d9a", "POL" = "#b15928",
+      "ROU" = "#b2df8a", "BGR" = "#fb9a99", "LVA" = "#fdbf6f",
+      "LTU" = "#cab2d6", "EST" = "#a6cee3"
+    )
+  ) +
+  labs(
+    title = "Military Spending of Conflict-Related Countries (Constant 2022 USD)",
+    subtitle = "Spending trends for Ukraine, Russia, and key NATO members since 2014",
+    x = "Year",
+    y = "Total Spending (Billion USD)",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray80", size = 0.5),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_y_continuous(labels = scales::comma, limits = c(0, max(conflict_summary$TotalSpending) * 1.1)) +
+  scale_x_continuous(breaks = seq(2014, 2023, 1))
+```
+
+## Key Observations 
+
+- **Russia’s Sharp Increase**: Post-2021, Russia escalated military expenditures amid ongoing conflict.
+- **Ukraine's Defense Spending Surge**: Since 2014, Ukraine has significantly raised defense budgets to counter Russian aggression.
+- **NATO Members' Military Budget Increase**: Poland, Romania, and Baltic states increased military spending due to security concerns.
+- **Geopolitical and Economic Factors**: Geopolitical tensions, NATO readiness, and domestic factors shape Europe’s military budgets.
+
+
+
+## Key Trends 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Visualization for GDP Percentage with Improved Colors
+ggplot(conflict_summary, aes(x = Year, y = GDPPercentage, color = ISO3, group = ISO3)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(
+    values = c(
+      "UKR" = "#1f78b4", "RUS" = "#e31a1c", "DEU" = "#33a02c",
+      "FRA" = "#ff7f00", "BEL" = "#6a3d9a", "POL" = "#b15928",
+      "ROU" = "#b2df8a", "BGR" = "#fb9a99", "LVA" = "#fdbf6f",
+      "LTU" = "#cab2d6", "EST" = "#a6cee3"
+    )
+  ) +
+  labs(
+    title = "Military Spending as a Percentage of GDP (Conflict-Related Countries)",
+    subtitle = "Spending as a share of GDP for Ukraine, Russia, and key NATO members since 2014",
+    x = "Year",
+    y = "Military Spending (% of GDP)",
+    color = "Country"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    panel.grid.major = element_line(color = "gray80", size = 0.5),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1), limits = c(0, max(conflict_summary$GDPPercentage) * 1.1)) +
+  scale_x_continuous(breaks = seq(2014, 2023, 1))
+```
+## Key Trends
+
+- **Ukraine's Military Spending Surge**: Ukraine’s defense spending has sharply risen from 2022 to counter Russian aggression.
+- **Russia's Steady Military Focus**: Russia maintains consistent military spending to ensure readiness amid tensions.
+- **NATO Members’ Increased Spending**: NATO members, particularly those near Russia, have raised defense spending since 2021 in response to escalating security threats.
+- **Slow Growth in Western Europe**: Western European countries, including France, Germany, and the UK, show slow growth in military spending at relatively lower levels.
+
+
+
+## Geopolitical Events and Military Spending Impact
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Define a list of NATO member countries
+nato_countries <- c(
+  "USA", "Canada", "UK", "France", "Germany", 
+  "Italy", "Belgium", "Netherlands", "Luxembourg", "Norway", 
+  "Denmark", "Portugal", "Turkey", "Greece", "Spain", 
+  "Poland", "Hungary", "Czech Republic", "Bulgaria", "Romania", 
+  "Slovakia", "Slovenia", "Estonia", "Latvia", "Lithuania", 
+  "Croatia", "Albania", "Montenegro", "North Macedonia"
+)
+
+# Filter the dataset for NATO countries
+nato_data <- data_long_constant %>% filter(Country %in% nato_countries)
+
+# Summarize data for US and other NATO members
+nato_summary <- nato_data %>%
+  mutate(US_Expenditure = ifelse(Country == "USA", Expenditure, 0),
+         Other_NATO_Expenditure = ifelse(Country != "USA", Expenditure
+                                         , 0)) %>%
+  group_by(Year) %>%
+  summarise(
+    US_Expenditure = sum(US_Expenditure, na.rm = TRUE),
+    Other_NATO_Expenditure = sum(Other_NATO_Expenditure, na.rm = TRUE)
+  )
+
+# Pivot data for visualization
+nato_summary_long <- nato_summary %>%
+  pivot_longer(cols = c(US_Expenditure, Other_NATO_Expenditure), names_to = "Category", values_to = "Expenditure")
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Visualization: US vs NATO Military Expenditure
+ggplot(nato_summary_long, aes(x = Year, y = Expenditure, fill = Category)) +
+  # Use geom_area for a stacked area chart
+  geom_area(alpha = 0.8, color = "black", size = 0.3) + 
+  # Customize fill colors
+  scale_fill_manual(
+    values = c("US_Expenditure" = "#1f78b4", "Other_NATO_Expenditure" = "#b2b2b2"),
+    labels = c("Other NATO Expenditure", "US Expenditure") # Swap labels
+  ) +
+  # Add labels and title
+  labs(
+    title = "US vs. NATO Military Expenditure (1949–2023)",
+    subtitle = "A comparison of military expenditure between the US and other NATO members",
+    x = "Year",
+    y = "Military Expenditure (USD Billions)",
+    fill = "Expenditure Type"
+  ) +
+  # Enhance theme for better visualization
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text = element_text(size = 10),
+    legend.position = "bottom",  # Move legend to the bottom for a cleaner layout
+    legend.title = element_text(face = "bold"),
+    panel.grid.major = element_line(color = "gray80", size = 0.5),
+    panel.grid.minor = element_blank()
+  ) +
+  # Adjust y-axis for better spacing
+  scale_y_continuous(labels = scales::comma_format()) +
+  # Add some padding for aesthetics
+  scale_x_continuous(expand = expansion(mult = c(0, 0.02)))
+```
+
+
+
+## Main Insights and Key Observations
+
+- **US Dominance in NATO Defense Spending**: The US contributes around **70%** of NATO’s total defense spending, underscoring its major role in the alliance.
+- **NATO Allies Below 2% Spending Target**: Many NATO allies, especially in Europe, fail to meet the **2% GDP defense spending guideline**.
+- **Highlighted During Crimea Crisis**: The **2014 Crimea crisis** emphasized the need for greater European military investment, with the US urging NATO allies to increase defense spending.
+
+
+## Discussion and Interpretation of Findings
+
+- **US Dominance in NATO Defense Spending**: The US has most of NATO's defense spending, shows the financial imbalance in the alliance, particularly in times of geopolitical tension.
+
+- **Asia-Pacific and Middle East Military Spending**: China’s military rise and India’s defense investments, with oil-driven spending in the Middle East boost regional military budgets.
+
+- **European Dependence on US Military Support**: Many European NATO members, have relied on US military support, but the 2022 Russian invasion led to reevaluations and initiatives like PESCO to strengthen defense.
+
+
+## Conclusion 
+
+- **Global Military Spending Trends**:  
+ Military spending has risen since 1949, peaking during major conflicts.
+- **Regional Differences**:  
+The US dominates NATO, while Europe relies heavily on US support; Asia-Pacific and the Middle East also see growing defense budgets.
+- **Implications**:  
+These trends guide for policy makers and security strategies and highlight the need for further research.
+
